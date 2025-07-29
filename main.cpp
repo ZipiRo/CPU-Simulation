@@ -21,7 +21,10 @@
 // INSTRUCTION SET
 
 const int REGISTER_COUNT = 4;
+const int STORAGE_SIZE_BYTES = 64536; // 64 KB
 const int MEMORY_SIZE_BYTES = 1024; // 1 KB
+
+const char ROM_FILE_PATH[] = "storage.img";
 
 class RAM
 {
@@ -39,10 +42,10 @@ public:
         if(adress + 3 >= data.size()) 
             throw std::out_of_range("RAM access out of range");
 
-        return (data[adress])
-        | (data[adress + 1] << 8)
-        | (data[adress + 2] << 16)
-        | (data[adress + 3] << 24);
+        return (data[adress])           // Get the first byte  
+        | (data[adress + 1] << 8)       // Get the second byte then shift to the left by 1 byte
+        | (data[adress + 2] << 16)      // Get the third byte then shift to the left by 2 byte
+        | (data[adress + 3] << 24);     // Get the fourth byte then shift to the left by 3 byte
     }
 
     void write(size_t adress, uint32_t value)
@@ -50,10 +53,10 @@ public:
         if(adress + 3 >= data.size()) 
             throw std::out_of_range("RAM write out of range");
         
-        data[adress] = value & 0xFF;
-        data[adress + 1] = (value >> 8) & 0xFF;
-        data[adress + 2] = (value >> 16) & 0xFF;
-        data[adress + 3] = (value >> 24) & 0xFF;
+        data[adress] = value & 0xFF;                // The first byte is the first value byte
+        data[adress + 1] = (value >> 8) & 0xFF;     // The second byte is the second value byte
+        data[adress + 2] = (value >> 16) & 0xFF;    // The third byte is the third value byte
+        data[adress + 3] = (value >> 24) & 0xFF;    // The fourth byte is the fourth value byte
     }
 
     size_t size()
@@ -69,24 +72,38 @@ private:
 
 public:
     ROM() {}
-    ROM(char* romfile)
+    ROM(const char* rom_file_path)
     {
-        std::ifstream rom(romfile, std::ios::binary);
+        int rom_file_size;
+        std::ifstream file(rom_file_path, std::ios::ate);
+        if(!file) throw std::runtime_error("Failed to open file");
+        if(file.is_open())
+        {
+            std::streamsize size = file.tellg();
+            file.close();
+        }
+
+        if(rom_file_size != STORAGE_SIZE_BYTES) 
+            throw std::runtime_error("Invalid ROM size");
+
+        std::ifstream rom(rom_file_path, std::ios::ate);
         if(!rom) throw std::runtime_error("Failed to open ROM file");
 
         uint8_t byte;
         while(rom.read((char*)(&byte), sizeof(uint8_t))) 
+        {
             data.push_back(byte);
+        }
     }
 
     uint32_t read(size_t adress) const 
     {
         if(adress >= data.size()) throw std::out_of_range("ROM access out of range");
 
-        return (data[adress])
-        | (data[adress + 1] << 8)
-        | (data[adress + 2] << 16)
-        | (data[adress + 3] << 24);
+        return (data[adress])           
+        | (data[adress + 1] << 8)       
+        | (data[adress + 2] << 16)      
+        | (data[adress + 3] << 24);     
     }
 
     size_t size()
@@ -111,21 +128,16 @@ public:
         this->rom = rom;
         this->ram = ram; 
 
-        ROM_PARTITION_END = rom->size();
-        RAM_PARTITION_END = ROM_PARTITION_END + ram->size();
-    }
-
-    uint32_t operator[](uint16_t adress) const
-    {
-        return read(adress);
+        ROM_PARTITION_END = rom->size();                        // ROM PARTITION
+        RAM_PARTITION_END = ROM_PARTITION_END + ram->size();    // RAM PARTITION
     }
 
     uint32_t read(uint16_t adress) const
     {
-        if(adress < ROM_PARTITION_END)
+        if(adress < ROM_PARTITION_END)                          
             return rom->read(adress);
         else if(adress < RAM_PARTITION_END)
-            return ram->read(adress - ROM_PARTITION_END);
+            return ram->read(adress - ROM_PARTITION_END);   // Reading from RAM at adress offset
         else 
             throw std::out_of_range("Memory acces out of range");
     }
@@ -135,7 +147,7 @@ public:
         if(adress < ROM_PARTITION_END)
             throw std::runtime_error("Cannot write to ROM");
         else if(adress < RAM_PARTITION_END)
-            ram->write(adress - ROM_PARTITION_END, value);
+            ram->write(adress - ROM_PARTITION_END, value);   // Writing to RAM memory at adress offset
         else 
             throw std::out_of_range("Memory write out of range");
     }
@@ -145,13 +157,13 @@ class CPU
 {
 private:
     uint8_t registers[REGISTER_COUNT];  // Registers
-    MEMC* memory;                       // Memory
+    MEMC* memory;                       // Memory Controler
 
-    uint32_t PC = 0;                    // Program Counter
+    uint32_t PC;                        // Program Counter / Memory Address Pointer
 
     // FLAGS
-    bool HALTED = false;                // Halt Flag 
-    bool ZF = false;                    // Zero Flag
+    bool HALTED;                        // Halt Flag 
+    bool ZF;                            // Zero Flag
     
     // FUNCTIONS
     void execute(uint32_t instruction)
@@ -248,30 +260,17 @@ public:
     CPU(MEMC* memory)
     {
         this->memory = memory;
+        PC = 0;
+        HALTED = 0;
     }
-
-    // void LoadProgram(uint32_t* program, int program_size) 
-    // {
-    //     if(CODE_END - CODE_START < program_size)                // The program should fit in the code partition
-    //     {
-    //         std::cout << "Program is too big!";
-    //         return;
-    //     }
-
-    //     for(int i = 0; i < program_size; i++)
-    //         memory[CODE_START + i] = program[i];                // Copy the program to memory
-
-    //     HALTED = false;                                         // Reset the HALTED flag 
-    //     PC = 0;                                                 // Reset the program counter 
-    // }
 
     void run()
     {
-        while (!HALTED)                                             // Execute the instruction until halt
+        while (!HALTED)                                                 // Execute the instruction until halt
         {   
             execute(memory->read(memory->ROM_PARTITION_END + PC * 4));  // Execute the instruction at the specified memory adress
 
-            PrintState();                                           // Debug CPU values
+            PrintState();                                               // Debug CPU values
         }
     }
 };
@@ -287,72 +286,26 @@ uint32_t EncInstr(uint32_t operation, uint32_t registerA, uint32_t registerB, ui
     return instruction;
 } 
 
-// TO DO: bootloader
-
 int main()
 {
-    ROM* rom = new ROM("storage.img");
-    RAM* ram = new RAM(MEMORY_SIZE_BYTES);
-    MEMC* memory_controler = new MEMC(rom, ram);
+    try 
+    {
+        ROM* rom = new ROM(ROM_FILE_PATH);              // Initialize ROM object
+        RAM* ram = new RAM(MEMORY_SIZE_BYTES);          // Initialize RAM object
+        MEMC* memory_controler = new MEMC(rom, ram);    // Initialize MEMORY CONTROLER object
 
-    CPU cpu(memory_controler);
+        CPU cpu(memory_controler);                      // Initialize CPU object
 
-    // uint32_t program1[] =
-    // {
-    //     EncInstr(MVI, 0, 0, 10),        // 0
-    //     EncInstr(MVI, 1, 0, 5),         // 1
-    //     EncInstr(ADDR, 0, 1),           // 2
-    //     EncInstr(MVI, 1, 0, 0),         // 3
-    //     EncInstr(ADDR, 1, 0),           // 4
-    //     EncInstr(CMP, 0, 1),            // 5  
-    //     EncInstr(JZ, 8, 0),             // 6  
-    //     EncInstr(SUBR, 1, 0),           // 7  
-    //     EncInstr(HLT, 0, 0)             // 8  
-    // };
-
-    // uint32_t program3[] = 
-    // {
-    //     EncInstr(MVI, 0, 0, 1),                 // 0
-    //     EncInstr(MVI, 1, 0, 100),               // 1
-    //     EncInstr(MVI, 3, 0, 5),                 // 2 
-        
-    //     EncInstr(ADDI, 0, 0, 1),                // 3
-    //     EncInstr(ADDI, 3, 0, 5),                // 4
-    //     EncInstr(CMP, 0, 1),                    // 5
-    //     EncInstr(JZ, 0, 0, 8),                  // 6
-    //     EncInstr(JMP, 0, 0, 3),                 // 7
-
-    //     EncInstr(STORE, 3, 0, DATA_START),      // 8
-    //     EncInstr(HLT, 0, 0)                     // 9
-    // };
-
-    // uint32_t program2[] =
-    // {
-    //     EncInstr(MVI, 0, 0, 100),   // 0
-    //     EncInstr(MVI, 1, 0, 5),     // 1
-
-    //     EncInstr(SUBI, 0, 0, 1),    // 2
-    //     EncInstr(CMP, 0, 1),        // 3
-    //     EncInstr(JZ, 0, 0, 6),      // 4
-    //     EncInstr(JMP, 0, 0, 2),     // 5
-
-    //     EncInstr(HLT, 0, 0)         // 6
-    // };
-
-    // uint32_t bootloader[] =
-    // {
-    //     EncInstr(MVI, 0, 0, 0),     // 0
-    //     EncInstr(MVI, 1, 0, 0),     // 1 
-    //     EncInstr(MVI, 2, 0, 0),     // 2
-    //     EncInstr(MVI, 3, 0, 0),     // 3
-        
-        
-    // };
-
-    // int program_size = sizeof(program2) / sizeof(program2[0]);
-
-    // cpu.LoadProgram(program2, program_size);
-    cpu.run();
+        cpu.run();                                      // Start CPU 
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';  
+    }
+    catch(const std::out_of_range& e)
+    {
+        std::cerr << "Out of range: " << e.what() << '\n';  
+    }
 
     return 0;
 }
