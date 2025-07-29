@@ -1,139 +1,119 @@
 #include <iostream>
-#include <vector>
+#include <cstdint>
 
-enum Operation {
-    SET,                            // set data to a register R0 = 10
-    MOV,                            // move/set a regsiter to another R1 = R2
-    ADD,                            // add second register to the first register R0 += R1 
-    SUB,                            // subtract first register from the second R0 -= R1
-    CMP,                            // compare two registers
-    JMP,                            // set the program counter (pc), jump to an instruction adress pc = 10 
-    JZ,                             // jump if the zero flag (zf) is true
-    JNZ,                            // jump if the zero flag (zf) is false
-    HLT,                            // stop the program
-    NOP,                            // no operation
-    LOAD,                           // load some data from the memory
-    STORE,                          // store some data in the memory 
+// INSTRUCTION SET
+#define MVR     0x00   // set a regsiter to another
+#define MVI     0x01   // set a register to an immediate
+#define ADDR    0x02   // add registerB to the registerB
+#define ADDI    0x03   // add to registerA an immediate
+#define SUBR    0x04   // subtract registerB from the secondA
+#define SUBI    0x05   // subtract an immediate from registerA
+#define CMP     0x06   // compare two registers
+#define JMP     0x07   // set the program counter to jump to an instruction adress 
+#define JZ      0x08   // jump if the zero flag is true
+#define JNZ     0x09   // jump if the zero flag is false
+#define HLT     0x0A   // stop the program
+#define NOP     0x0B   // no operation
+#define LOAD    0x0C   // load from memory adress in registerA
+#define STORE   0x0D   // store registerA in memory adress 
+// INSTRUCTION SET
 
-    END                             // just for code to know when it's finished
-};
+const int REGISTER_COUNT = 4;        // How much registers
+const int MEMORY_SIZE = 0x100;       // How much memory in Bytes
 
-struct Instruction {
-    int operation;                  // operation
-    int operand1;                   // register
-    int operand2;                   // register, number
-};
+const int CODE_START = 0x0;
+const int CODE_END = 0xBF;
 
-const int REGISTER_COUNT = 4;       // How much registers
-const int MEMORY_SIZE = 256;        // How much memory in Bytes
-
-const int CODE_START = 0;
-const int CODE_END = 192;
-
-const int DATA_START = 193;
-const int DATA_END = 254;
+const int DATA_START = 0xC0;
+const int DATA_END = 0xFF;
 
 class CPU
 {
 private:
-    int registers[REGISTER_COUNT]; // Registers
-    int memory[MEMORY_SIZE];       // Memory
-    int pc = 0;                    // Program Counter
+    uint8_t registers[REGISTER_COUNT]; // Registers
+    uint32_t memory[MEMORY_SIZE];      // Memory
+    uint32_t PC = 0;                   // Program Counter
 
     // FLAGS
-    bool halted = false;           // Halt Flag 
-    bool zf = false;               // Zero Flag
+    bool HALTED = false;               // Halt Flag 
+    bool ZF = false;                   // Zero Flag
     
     // FUNCTIONS
-    void execute(Instruction instruction)
+    void execute(uint32_t instruction)
     {
-        switch (instruction.operation)
+        uint8_t operation = (instruction >> 24) & 0xFF; // shift 24 bits to the right then keep the lowest 8 bits
+        uint8_t registerA = (instruction >> 16) & 0xFF; // shift 16 bits to the right then keep the lowest 8 bits
+        uint8_t registerB = (instruction >> 8) & 0xFF;  // shift 8 bits to the right then keep the lowest 8 bits
+        uint8_t immediate = instruction & 0xFF;         // keep the last 8 bits
+
+        switch (operation)
         {
-        case SET:
-            registers[instruction.operand1] = instruction.operand2;                                             // Set a register to a value R1 = NUM
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "SET R" << instruction.operand1 << " = " << instruction.operand2 << '\n';
-
-            break;  
-        case MOV:       
-            registers[instruction.operand1] = registers[instruction.operand2];                                  // Move/Set a register to another regsiter R0 = R1
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "MOV R" << instruction.operand2 << " = R" << instruction.operand1 << '\n';
+        case MVR:       
+            registers[registerA] = registers[registerB];                                // Move/Set a register to another regsiter RA = RB
+            PC++;                                                                       // Increment the program counter
 
             break;      
-        case ADD:       
-            registers[instruction.operand1] += registers[instruction.operand2];                                 // Add a register to another register R1 += R0
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "R" << instruction.operand1 << " += R" << instruction.operand2 << '\n';
+        case ADDR:       
+            registers[registerA] += registers[registerB];                               // Add a register to another register RA += RB
+            PC++;                                                                       // Increment the program counter
 
             break;      
-        case SUB:       
-            registers[instruction.operand1] -= registers[instruction.operand2];                                 // Subtract a regiter from the other register R1 -= R2
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "R" << instruction.operand1 << " -= R" << instruction.operand2 << '\n';
+        case SUBR:       
+            registers[registerA] -= registers[registerB];                               // Subtract a regiter from the other register RA -= RB
+            PC++;                                                                       // Increment the program counter
+
+            break;
+        case MVI:       
+            registers[registerA] = immediate;                                           // Set a register to an immediate RA = imm
+            PC++;                                                                       // Increment the program counter
+
+            break;      
+        case ADDI:       
+            registers[registerA] += immediate;                                          // Add an immediate to a register RB += imm
+            PC++;                                                                       // Increment the program counter
+
+            break;      
+        case SUBI:       
+            registers[registerA] -= immediate;                                          // Subtract a regiter from the other register RA -= imm
+            PC++;                                                                       // Increment the program counter
 
             break;
         case CMP:
-            zf = (registers[instruction.operand1] == registers[instruction.operand2]);                          // Compare two register R0 ?= R2 
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "CMP R" << instruction.operand1 << " WITH R" << instruction.operand2 << '\n';
+            ZF = (registers[registerA] == registers[registerB]);                        // Compare two register RA =? RB 
+            PC++;                                                                       // Increment the program counter
 
             break;
         case JMP:
-            pc = instruction.operand1;                                                                          // Set the program counter to another instruction
-            
-            std::cout << "JMP TO " << instruction.operand1 << " INSTRUCTION\n";
+            PC = immediate;                                                             // Set the program counter to another instruction
 
             break;
         case JZ:
-            std::cout << "JZ TO " << instruction.operand1 << " INSTRUCTION\n";    
-            if(zf)
-            {
-                pc = instruction.operand1;                                                                      // Set the program counter to other instruction if the zero flag is true  
-                std::cout << "JMP TO " << instruction.operand1 << " INSTRUCTION\n";
-            }
-            else pc++;    
+            if(ZF) PC = immediate;                                                      // Set the program counter to other instruction if the zero flag is true  
+            else PC++;    
                                  
             break;
         case JNZ:
-            std::cout << "JNZ TO " << instruction.operand1 << " INSTRUCTION\n";    
-            if(!zf)
-            {
-                pc = instruction.operand1;                                                                      // Set the program counter to other instruction if the zero flag is false  
-                std::cout << "JMP TO " << instruction.operand1 << " INSTRUCTION\n";
-            }
-            else pc++;    
+            if(!ZF) PC = immediate;                                                     // Set the program counter to other instruction if the zero flag is false  
+            else PC++;    
                                  
             break;
         case HLT:
-            halted = true;                                                                                      // Stop the program
-            
-            std::cout << "PROGRAM HALTED\n";
+            HALTED = true;                                                              // Stop the program
 
             break;
         case LOAD:
-            registers[instruction.operand1] = memory[instruction.operand2];                                     // Load some value from an adress in the memory to a register 
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "LOAD R" << instruction.operand1 << " FROM MEMORY [" << instruction.operand2 << "]\n";
+            registers[registerA] = memory[immediate];                                   // Load some value from an adress in the memory to a register 
+            PC++;                                                                       // Increment the program counter
             
             break;
         case STORE:
-            memory[instruction.operand2] = registers[instruction.operand1];                                     // Store some value from a register in memory to an adress
-            pc++;                                                                                               // Increment the program counter
-                 
-            std::cout << "STORE R" << instruction.operand1 << " TO MEMORY [" << instruction.operand2 << "]\n";
+            memory[immediate] = registers[registerA];                                   // Store some value from a register in memory to an adress
+            PC++;                                                                       // Increment the program counter
+                                                                                        
             break;
         case NOP:
-                                                                                                                // Nothing happends
-            pc++;                                                                                               // Increment the program counter
-            
-            std::cout << "NO OPERATION\n";
+                                                                                        // Nothing happends
+            PC++;                                                                       // Increment the program counter
 
             break;
         default:
@@ -143,74 +123,102 @@ private:
 
     void PrintState() 
     {
+        std::cout << "PC: " << PC << '\n';
         std::cout << "Registers:\n";
         for(int i = 0; i < REGISTER_COUNT; ++i)
-            std::cout << "R" << i << " = " << registers[i] << " | ";
-        std::cout << "\n\n";
+            std::cout << "R" << i << " = " << int(registers[i]) << '\n';
+        std::cout << '\n';
     }
 
 public:
-    void LoadProgram(int* program) 
+    void LoadProgram(uint32_t* program, int program_size) 
     {
-        for(int i = 0; program[i] != END && i < CODE_END; i++)
+        if(CODE_END - CODE_START < program_size)                // The program should fit in the code partition
+        {
+            std::cout << "Program is too big!";
+            return;
+        }
+
+        for(int i = 0; i < program_size; i++)
             memory[CODE_START + i] = program[i];                // Copy the program to memory
 
-        halted = false;                                         // Reset the halted flag 
-        pc = 0;                                                 // Reset the program counter 
+        HALTED = false;                                         // Reset the HALTED flag 
+        PC = 0;                                                 // Reset the program counter 
     }
 
     void Run()
     {
-        while (!halted)                                         // Execute the instruction until halt
+        while (!HALTED)                                         // Execute the instruction until halt
         {   
-            execute
-            ({ 
-                memory[pc * 3],                                 // Operation
-                memory[pc * 3 + 1],                             // Operand1
-                memory[pc * 3 + 2]                              // Operand2
-            });                                                 // Execute the instruction
+            execute(memory[PC]);                                // Execute the instruction pointed by the program counter
 
-            PrintState();                                       // Debug the registers
+            // PrintState();                                       // Debug CPU values
         }
     }
 };
+
+uint32_t EncInstr(uint32_t operation, uint32_t registerA, uint32_t registerB, uint32_t immediate = 0x0)
+{
+    uint32_t instruction = 
+      (operation << 24)       // 8 bits -> operation
+    | (registerA << 16)       // 8 bits -> registerA
+    | (registerB << 8)        // 8 bits -> registerB 
+    | (immediate & 0xFF);     // 8 bits -> immediate
+
+    return instruction;
+} 
+
+// TO DO: bootloader, ROM,
 
 int main()
 {
     CPU cpu1;
     
-    int program1[] =
+    uint32_t program1[] =
     {
-        SET, 0, 10,   // 0
-        SET, 1, 5,    // 1
-        ADD, 0, 1,    // 2
-        SET, 1, 0,    // 3
-        ADD, 1, 0,    // 4
-        CMP, 0, 1,    // 5
-        JZ, 8, 0,     // 6
-        SUB, 1, 0,    // 7
-        HLT, 0, 0,    // 8
-        END
+        EncInstr(MVI, 0, 0, 10),        // 0
+        EncInstr(MVI, 1, 0, 5),         // 1
+        EncInstr(ADDR, 0, 1),           // 2
+        EncInstr(MVI, 1, 0, 0),         // 3
+        EncInstr(ADDR, 1, 0),           // 4
+        EncInstr(CMP, 0, 1),            // 5  
+        EncInstr(JZ, 8, 0),             // 6  
+        EncInstr(SUBR, 1, 0),           // 7  
+        EncInstr(HLT, 0, 0),            // 8  
     };
     
-    int program2[] = 
+    uint32_t program2[] = 
     {
-        SET, 0, 1,                // 0
-        SET, 1, 100,              // 1
-        MOV, 2, 0,                // 2
-        SET, 3, 5,                // 3 
-        ADD, 2, 0,                // 4
-        ADD, 3, 2,                // 5
-        CMP, 2, 1,                // 6
-        JZ, 9, 0,                 // 7
-        JMP, 4, 0,                // 8
-        STORE, 3, DATA_START,     // 9
-        HLT, 0, 0,                // 10
-        END   
+        EncInstr(MVI, 0, 0, 1),                 // 0
+        EncInstr(MVI, 1, 0, 100),               // 1
+        EncInstr(MVR, 2, 0),                    // 2
+        EncInstr(MVI, 3, 0, 5),                 // 3 
+        EncInstr(ADDR, 2, 0),                   // 4
+        EncInstr(ADDR, 3, 2),                   // 5
+        EncInstr(CMP, 2, 1),                    // 6
+        EncInstr(JZ, 9, 0),                     // 7
+        EncInstr(JMP, 4, 0),                    // 8
+        EncInstr(STORE, 3, 0, DATA_START),      // 9
+        EncInstr(HLT, 0, 0),                    // 10
     };
 
+    uint32_t program3[] = 
+    {
+        EncInstr(MVI, 0, 0, 1),                 // 0
+        EncInstr(MVI, 1, 0, 5),                 // 1
+        EncInstr(MVI, 3, 0, 5),                 // 2 
+        EncInstr(ADDI, 0, 0, 1),                // 3
+        EncInstr(ADDR, 3, 2),                   // 4
+        EncInstr(CMP, 0, 1),                    // 5
+        EncInstr(JZ, 0, 0, 8),                  // 6
+        EncInstr(JMP, 0, 0, 3),                 // 7
+        EncInstr(STORE, 3, 0, DATA_START),      // 8
+        EncInstr(HLT, 0, 0),                    // 9
+    };
 
-    cpu1.LoadProgram(program2);
+    int program_size = sizeof(program3) / sizeof(program3[0]);
+
+    cpu1.LoadProgram(program3, program_size);
     cpu1.Run();
 
     return 0;
