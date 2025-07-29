@@ -259,9 +259,10 @@ private:
 public:
     CPU(MEMC* memory)
     {
-        this->memory = memory;
-        PC = 0;
-        HALTED = 0;
+        this->memory = memory;      // Add memory controler
+        PC = 0x00;                // Set the program counter to adress 0 
+        HALTED = 0;                 // Set the halted flag to false 
+        ZF = 0;                     // Set the zero flag to false
     }
 
     void run()
@@ -274,17 +275,6 @@ public:
         }
     }
 };
-
-uint32_t EncInstr(uint32_t operation, uint32_t registerA, uint32_t registerB, uint32_t immediate = 0x0)
-{
-    uint32_t instruction = 
-      (operation << 24)       // 8 bits -> operation
-    | (registerA << 20)       // 4 bits -> registerA
-    | (registerB << 16)       // 4 bits -> registerB 
-    | (immediate & 0xFFFF);   // 16 bits -> immediate
-
-    return instruction;
-} 
 
 int main()
 {
