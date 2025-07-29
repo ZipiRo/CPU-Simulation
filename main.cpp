@@ -1,5 +1,7 @@
 #include <iostream>
+#include <fstream>
 #include <cstdint>
+#include <vector>
 
 // INSTRUCTION SET
 #define MVR     0x00   // set a regsiter to another
@@ -18,25 +20,138 @@
 #define STORE   0x0D   // store registerA in memory adress 
 // INSTRUCTION SET
 
-const int REGISTER_COUNT = 4;        // How much registers
-const int MEMORY_SIZE = 0x100;       // How much memory in Bytes
+const int REGISTER_COUNT = 4;
+const int MEMORY_SIZE_BYTES = 1024; // 1 KB
 
-const int CODE_START = 0x0;
-const int CODE_END = 0xBF;
+class RAM
+{
+private:
+    std::vector<uint8_t> data;
 
-const int DATA_START = 0xC0;
-const int DATA_END = 0xFF;
+public:
+    RAM(size_t size_in_bytes) 
+    {
+        data = std::vector<uint8_t>(size_in_bytes);
+    }
+
+    uint32_t read(size_t adress) const 
+    {
+        if(adress + 3 >= data.size()) 
+            throw std::out_of_range("RAM access out of range");
+
+        return (data[adress])
+        | (data[adress + 1] << 8)
+        | (data[adress + 2] << 16)
+        | (data[adress + 3] << 24);
+    }
+
+    void write(size_t adress, uint32_t value)
+    {
+        if(adress + 3 >= data.size()) 
+            throw std::out_of_range("RAM write out of range");
+        
+        data[adress] = value & 0xFF;
+        data[adress + 1] = (value >> 8) & 0xFF;
+        data[adress + 2] = (value >> 16) & 0xFF;
+        data[adress + 3] = (value >> 24) & 0xFF;
+    }
+
+    size_t size()
+    {
+        return data.size();
+    }
+};
+
+class ROM
+{
+private:
+    std::vector<uint8_t> data;
+
+public:
+    ROM() {}
+    ROM(char* romfile)
+    {
+        std::ifstream rom(romfile, std::ios::binary);
+        if(!rom) throw std::runtime_error("Failed to open ROM file");
+
+        uint8_t byte;
+        while(rom.read((char*)(&byte), sizeof(uint8_t))) 
+            data.push_back(byte);
+    }
+
+    uint32_t read(size_t adress) const 
+    {
+        if(adress >= data.size()) throw std::out_of_range("ROM access out of range");
+
+        return (data[adress])
+        | (data[adress + 1] << 8)
+        | (data[adress + 2] << 16)
+        | (data[adress + 3] << 24);
+    }
+
+    size_t size()
+    {
+        return data.size();
+    }
+};
+
+class MEMC
+{
+private:
+    ROM* rom;
+    RAM* ram;
+
+public:
+    uint32_t ROM_PARTITION_END;
+    uint32_t RAM_PARTITION_END;
+
+    MEMC() {}
+    MEMC(ROM* rom, RAM* ram)
+    {
+        this->rom = rom;
+        this->ram = ram; 
+
+        ROM_PARTITION_END = rom->size();
+        RAM_PARTITION_END = ROM_PARTITION_END + ram->size();
+    }
+
+    uint32_t operator[](uint16_t adress) const
+    {
+        return read(adress);
+    }
+
+    uint32_t read(uint16_t adress) const
+    {
+        if(adress < ROM_PARTITION_END)
+            return rom->read(adress);
+        else if(adress < RAM_PARTITION_END)
+            return ram->read(adress - ROM_PARTITION_END);
+        else 
+            throw std::out_of_range("Memory acces out of range");
+    }
+
+    void write(uint16_t adress, uint32_t value) 
+    {
+        if(adress < ROM_PARTITION_END)
+            throw std::runtime_error("Cannot write to ROM");
+        else if(adress < RAM_PARTITION_END)
+            ram->write(adress - ROM_PARTITION_END, value);
+        else 
+            throw std::out_of_range("Memory write out of range");
+    }
+};
 
 class CPU
 {
 private:
-    uint16_t registers[REGISTER_COUNT]; // Registers
-    uint32_t memory[MEMORY_SIZE];      // Memory
-    uint32_t PC = 0;                   // Program Counter
+    uint8_t registers[REGISTER_COUNT];  // Registers
+    MEMC* memory;                       // Memory
+
+    uint32_t PC = 0;                    // Program Counter
 
     // FLAGS
-    bool HALTED = false;               // Halt Flag 
-    bool ZF = false;                   // Zero Flag
+    bool HALTED = false;                // Halt Flag 
+    bool ZF = false;                    // Zero Flag
     
     // FUNCTIONS
     void execute(uint32_t instruction)
@@ -102,12 +217,12 @@ private:
 
             break;
         case LOAD:
-            registers[registerA] = memory[immediate];                // Load some value from an adress in the memory to a register 
+            registers[registerA] = memory->read(immediate);           // Load some value from an adress in the memory to a register 
             PC++;                                                    // Increment the program counter
             
             break;
         case STORE:
-            memory[immediate] = registers[registerA];                // Store some value from a register in memory to an adress
+            memory->write(immediate, registers[registerA]);           // Store some value from a register in memory to an adress
             PC++;                                                    // Increment the program counter
                                                                                         
             break;
@@ -130,28 +245,33 @@ private:
     }
 
 public:
-    void LoadProgram(uint32_t* program, int program_size) 
+    CPU(MEMC* memory)
     {
-        if(CODE_END - CODE_START < program_size)                // The program should fit in the code partition
-        {
-            std::cout << "Program is too big!";
-            return;
-        }
-
-        for(int i = 0; i < program_size; i++)
-            memory[CODE_START + i] = program[i];                // Copy the program to memory
-
-        HALTED = false;                                         // Reset the HALTED flag 
-        PC = 0;                                                 // Reset the program counter 
+        this->memory = memory;
     }
 
-    void Run()
-    {
-        while (!HALTED)                                         // Execute the instruction until halt
-        {   
-            execute(memory[PC]);                                // Execute the instruction pointed by the program counter
+    // void LoadProgram(uint32_t* program, int program_size) 
+    // {
+    //     if(CODE_END - CODE_START < program_size)                // The program should fit in the code partition
+    //     {
+    //         std::cout << "Program is too big!";
+    //         return;
+    //     }
 
-            PrintState();                                       // Debug CPU values
+    //     for(int i = 0; i < program_size; i++)
+    //         memory[CODE_START + i] = program[i];                // Copy the program to memory
+
+    //     HALTED = false;                                         // Reset the HALTED flag 
+    //     PC = 0;                                                 // Reset the program counter 
+    // }
+
+    void run()
+    {
+        while (!HALTED)                                             // Execute the instruction until halt
+        {   
+            execute(memory->read(memory->ROM_PARTITION_END + PC * 4));  // Execute the instruction at the specified memory adress
+
+            PrintState();                                           // Debug CPU values
         }
     }
 };
@@ -167,43 +287,72 @@ uint32_t EncInstr(uint32_t operation, uint32_t registerA, uint32_t registerB, ui
     return instruction;
 } 
 
-// TO DO: bootloader, ROM,
+// TO DO: bootloader
 
 int main()
 {
-    CPU cpu;
-    
-    uint32_t program1[] =
-    {
-        EncInstr(MVI, 0, 0, 10),        // 0
-        EncInstr(MVI, 1, 0, 5),         // 1
-        EncInstr(ADDR, 0, 1),           // 2
-        EncInstr(MVI, 1, 0, 0),         // 3
-        EncInstr(ADDR, 1, 0),           // 4
-        EncInstr(CMP, 0, 1),            // 5  
-        EncInstr(JZ, 8, 0),             // 6  
-        EncInstr(SUBR, 1, 0),           // 7  
-        EncInstr(HLT, 0, 0),            // 8  
-    };
+    ROM* rom = new ROM("storage.img");
+    RAM* ram = new RAM(MEMORY_SIZE_BYTES);
+    MEMC* memory_controler = new MEMC(rom, ram);
 
-    uint32_t program3[] = 
-    {
-        EncInstr(MVI, 0, 0, 1),                 // 0
-        EncInstr(MVI, 1, 0, 100),               // 1
-        EncInstr(MVI, 3, 0, 5),                 // 2 
-        EncInstr(ADDI, 0, 0, 1),                // 3
-        EncInstr(ADDI, 3, 0, 5),                // 4
-        EncInstr(CMP, 0, 1),                    // 5
-        EncInstr(JZ, 0, 0, 8),                  // 6
-        EncInstr(JMP, 0, 0, 3),                 // 7
-        EncInstr(STORE, 3, 0, DATA_START),      // 8
-        EncInstr(HLT, 0, 0),                    // 9
-    };
+    CPU cpu(memory_controler);
 
-    int program_size = sizeof(program3) / sizeof(program3[0]);
+    // uint32_t program1[] =
+    // {
+    //     EncInstr(MVI, 0, 0, 10),        // 0
+    //     EncInstr(MVI, 1, 0, 5),         // 1
+    //     EncInstr(ADDR, 0, 1),           // 2
+    //     EncInstr(MVI, 1, 0, 0),         // 3
+    //     EncInstr(ADDR, 1, 0),           // 4
+    //     EncInstr(CMP, 0, 1),            // 5  
+    //     EncInstr(JZ, 8, 0),             // 6  
+    //     EncInstr(SUBR, 1, 0),           // 7  
+    //     EncInstr(HLT, 0, 0)             // 8  
+    // };
 
-    cpu.LoadProgram(program3, program_size);
-    cpu.Run();
+    // uint32_t program3[] = 
+    // {
+    //     EncInstr(MVI, 0, 0, 1),                 // 0
+    //     EncInstr(MVI, 1, 0, 100),               // 1
+    //     EncInstr(MVI, 3, 0, 5),                 // 2 
+        
+    //     EncInstr(ADDI, 0, 0, 1),                // 3
+    //     EncInstr(ADDI, 3, 0, 5),                // 4
+    //     EncInstr(CMP, 0, 1),                    // 5
+    //     EncInstr(JZ, 0, 0, 8),                  // 6
+    //     EncInstr(JMP, 0, 0, 3),                 // 7
+
+    //     EncInstr(STORE, 3, 0, DATA_START),      // 8
+    //     EncInstr(HLT, 0, 0)                     // 9
+    // };
+
+    // uint32_t program2[] =
+    // {
+    //     EncInstr(MVI, 0, 0, 100),   // 0
+    //     EncInstr(MVI, 1, 0, 5),     // 1
+
+    //     EncInstr(SUBI, 0, 0, 1),    // 2
+    //     EncInstr(CMP, 0, 1),        // 3
+    //     EncInstr(JZ, 0, 0, 6),      // 4
+    //     EncInstr(JMP, 0, 0, 2),     // 5
+
+    //     EncInstr(HLT, 0, 0)         // 6
+    // };
+
+    // uint32_t bootloader[] =
+    // {
+    //     EncInstr(MVI, 0, 0, 0),     // 0
+    //     EncInstr(MVI, 1, 0, 0),     // 1 
+    //     EncInstr(MVI, 2, 0, 0),     // 2
+    //     EncInstr(MVI, 3, 0, 0),     // 3
+        
+        
+    // };
+
+    // int program_size = sizeof(program2) / sizeof(program2[0]);
+
+    // cpu.LoadProgram(program2, program_size);
+    cpu.run();
 
     return 0;
 }
