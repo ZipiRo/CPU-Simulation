@@ -30,103 +30,145 @@ private:
             registers[registerA] = registers[registerB];                        // Move/Set a register to another regsiter RA = RB
             PC += 4;                                                            // Move the program counter to the next instruction
 
+            std::cout << "MVR -> R" << int(registerA) << "[" << registers[registerA] << "] = R" << int(registerB) << "[" << registers[registerB] << "]\n";  
+
             break;      
         case ADDR:       
             registers[registerA] += registers[registerB];                       // Add a register to another register RA += RB
             PC += 4;                                                            // Move the program counter to the next instruction
+
+            std::cout << "ADDR -> R" << int(registerA) << "[" << registers[registerA] << "] += R" << int(registerB) << "[" << registers[registerB] << "]\n";  
 
             break;      
         case SUBR:       
             registers[registerA] -= registers[registerB];                       // Subtract a regiter from the other register RA -= RB
             PC += 4;                                                            // Move the program counter to the next instruction
 
+            std::cout << "SUBR -> R" << int(registerA) << "[" << registers[registerA] << "] -= R" << int(registerB) << "[" << registers[registerB] << "]\n";  
+
             break;
         case MVI:       
             registers[registerA] = immediate;                                   // Set a register to an immediate RA = imm
             PC += 4;                                                            // Move the program counter to the next instruction
+
+            std::cout << "MVI -> R" << int(registerA) << "[" << registers[registerA] << "] = I[" << immediate << "]\n";  
 
             break;      
         case ADDI:       
             registers[registerA] += immediate;                                  // Add an immediate to a register RB += imm
             PC += 4;                                                            // Move the program counter to the next instruction
 
+            std::cout << "ADDI -> R" << int(registerA) << "[" << registers[registerA] << "] += I[" << immediate << "]\n";  
+
             break;      
         case SUBI:       
             registers[registerA] -= immediate;                                  // Subtract a regiter from the other register RA -= imm
             PC += 4;                                                            // Move the program counter to the next instruction
 
+            std::cout << "SUBI -> R" << int(registerA) << "[" << registers[registerA] << "] -= I[" << immediate << "]\n";  
+
             break;
         case CMP:
-            ZF = (registers[registerA] == registers[registerB]);                // Compare two register RA =? RB 
+            ZF = (registers[registerA] == registers[registerB]);                // Compare two register RA ?= RB 
             PC += 4;                                                            // Move the program counter to the next instruction
+
+            std::cout << "CMP -> R" << int(registerA) << "[" << registers[registerA] << "] ?= I" << int(registerB) << "[" << registers[registerB] << "]\n";  
 
             break;
         case JMP:
             PC = immediate;                                                     // Set the program counter to another instruction
+
+            std::cout << "JMP -> PC = I[" << immediate << "]\n"; 
 
             break;
         case JZ:
             if(ZF) PC = immediate;                                              // Set the program counter to other instruction if the zero flag is true  
             else PC += 4;    
                                  
+            std::cout << "JZ -> PC = I[" << immediate << "]\n";
+
             break;
         case JNZ:
             if(!ZF) PC = immediate;                                             // Set the program counter to other instruction if the zero flag is false  
             else PC += 4;    
+
+            std::cout << "JNZ -> PC = I[" << immediate << "]\n";
                                  
             break;
         case HLT:
             HALTED = true;                                                      // Stop the program
+
+            std::cout << "Program halted\n";
 
             break;
         case LOADR:
             registers[registerA] = memory->read(registers[registerB]);          // Load some value from an adress in the memory to a register 
             PC += 4;                                                            // Move the program counter to the next instruction
             
+            std::cout << "LOADR -> R" << int(registerA) << " = Memory(R" << int(registerB) << "[" << registers[registerB] << "])\n";  
+
             break;
         case STORER:
             memory->write(registers[registerB], registers[registerA]);          // Store some value from a register in memory to an adress
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+            
+            std::cout << "STORER -> Memory(R" << int(registerB) << "[" << registers[registerB] << "])" << " = R" << int(registerA) << "[" << registers[registerA] << "]\n";                                                                              
+
             break;
         case LOADI:
-            registers[registerA] = memory->read(immediate);                     // Load some value from an adress in the memory to a register 
+            registers[registerA] = memory->read(immediate);                     
             PC += 4;                                                            // Move the program counter to the next instruction
             
+            std::cout << "LOADI -> R" << int(registerA) << " = Memory(I[" << immediate << "])\n";  
+
             break;
         case STOREI:
-            memory->write(immediate, registers[registerA]);                     // Store some value from a register in memory to an adress
+            memory->write(immediate, registers[registerA]);                     
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+                                   
+            std::cout << "STOREI -> Memory(I[" << immediate << "])" << " = R" << int(registerA) << "[" << registers[registerA] << "]\n";     
+
             break;
         case ANDR:
             registers[registerA] &= registers[registerB];
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+                            
+            std::cout << "ANDR -> R" << int(registerA) << "[" << registers[registerA] << "] &= R" << int(registerB) << "[" << registers[registerB] << "]\n";           
+            
             break;
         case ANDI:
             registers[registerA] &= immediate;             
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+                                                                                 
+            std::cout << "ANDR -> R" << int(registerA) << "[" << registers[registerA] << "] &= I[" << immediate << "]\n";   
+
             break;
         case ORR:
             registers[registerA] |= registers[registerB];
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+                                                                   
+            std::cout << "ANDR -> R" << int(registerA) << "[" << registers[registerA] << "] |= R" << int(registerB) << "[" << registers[registerB] << "]\n";   
+
             break;
         case ORI:
-            registers[registerA] |= immediate;          
+            registers[registerA] |= immediate;                                  
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+                                                   
+            std::cout << "ANDR -> R" << int(registerA) << "[" << registers[registerA] << "] |= I[" << immediate << "]\n";   
+
             break;
         case LSR:
-            registers[registerA] >>= immediate;          
+            registers[registerA] >>= immediate;                                 // Shift immediate bits to the right
             PC += 4;                                                            // Move the program counter to the next instruction
-                                                                                        
+                                                                         
+            std::cout << "ANDR -> R" << int(registerA) << "[" << registers[registerA] << "] >>= I[" << immediate << "]\n";   
+
             break;
         case LSL:
-            registers[registerA] <<= immediate;          
+            registers[registerA] <<= immediate;                                 // Shift immediate bits to the left
             PC += 4;                                                            // Move the program counter to the next instruction
+
+            std::cout << "ANDR -> R" << int(registerA) << "[" << registers[registerA] << "] <<= I[" << immediate << "]\n";   
                                                                                         
             break;
         case NOP:

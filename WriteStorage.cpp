@@ -74,7 +74,7 @@ int main()
     {
         // Set registers
         EncInstr(MVI, 0, 0, 120),     // 0 // What to multiply
-        EncInstr(MVI, 1, 0, 940),     // 1 // How much times to multiply 
+        EncInstr(MVI, 1, 0, 5),     // 1 // How much times to multiply 
         EncInstr(MVI, 2, 0, 0),       // 2 // How much times we multiplyed
         EncInstr(MVI, 3, 0, 0),       // 3 // The result
 
