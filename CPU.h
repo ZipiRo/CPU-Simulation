@@ -4,6 +4,8 @@
 #include "MemoryControler.h"
 #include "Instructions.h"
 
+const int REGISTER_COUNT = 4;
+
 class CPU
 {
 private:

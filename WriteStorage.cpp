@@ -73,16 +73,16 @@ int main()
     uint32_t program[] = 
     {
         // Set registers
-        EncInstr(MVI, 0, 0, 120),     // 0 // What to multiply
-        EncInstr(MVI, 1, 0, 5),     // 1 // How much times to multiply 
-        EncInstr(MVI, 2, 0, 0),       // 2 // How much times we multiplyed
-        EncInstr(MVI, 3, 0, 0),       // 3 // The result
+        EncInstr(MVI, 0, 0, 120),     // 0 What to multiply
+        EncInstr(MVI, 1, 0, 5),       // 1 How much times to multiply 
+        EncInstr(MVI, 2, 0, 0),       // 2 How much times we multiplyed
+        EncInstr(MVI, 3, 0, 0),       // 3 The result
 
         // Multiplying loop 
-        EncInstr(ADDI, 2, 0, 1),      // 4 // Add to the times multiplyed
-        EncInstr(ADDR, 3, 0),         // 5 // Add the result 
-        EncInstr(CMP, 1, 2),          // 6 // Did we multiply R1 times 
-        EncInstr(JNZ, 0, 0, 0x8010),  // 8 // Jump to start of loop if not 
+        EncInstr(ADDI, 2, 0, 1),      // 4 Add to the times multiplyed
+        EncInstr(ADDR, 3, 0),         // 5 Add the result 
+        EncInstr(CMP, 1, 2),          // 6 Did we multiply R1 times 
+        EncInstr(JNZ, 0, 0, 0x8010),  // 8 Jump to start of loop if not 
 
         // Stop program
         EncInstr(HLT, 0, 0)           // 9

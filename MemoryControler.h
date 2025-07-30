@@ -3,10 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-const int REGISTER_COUNT = 4;
 const int STORAGE_SIZE_BYTES = 1024 * 32; // 32 KB
-const int MEMORY_SIZE_BYTES = 1024; // 1 KB
-
 const char ROM_FILE_PATH[] = "storage.img";
 
 class RAM

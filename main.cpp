@@ -2,6 +2,8 @@
 
 #include "CPU.h"
 
+const int MEMORY_SIZE_BYTES = 1024; // 1 KB
+
 int main()
 {
     try 
